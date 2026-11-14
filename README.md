@@ -1,7 +1,8 @@
 # SkywardDataSharp
 
-*Skyward Sword HD*'s game data `.dat` files: event lists (`zev.dat`), camera parameters (`camparam.dat`), the navi
-table (`navi_table.dat`) and the map tables (`MapGradation.dat`, `mapScrollTex_00.dat`).
+*Skyward Sword HD*'s game data: event lists (`zev.dat`), camera parameters (`camparam.dat`), the navi table
+(`navi_table.dat`), the map tables (`MapGradation.dat`, `mapScrollTex_00.dat`), JStudio cutscenes (`.stb`), collision
+polygon codes (`.plc`), enemy parameter sheets (`.entxt`) and map-edge settings (`.bedge`).
 
 ```csharp
 ZevFile zev = ZevFile.FromBinary(arc["dat/zev.dat"]!.Data);
@@ -27,8 +28,26 @@ in the pool, and 235 named camera styles (`Dungeon`, `Field`, `LadderTube`, ...)
 table. `MapGradationFile` (`CSVD`) holds a name, two heights and a colour per map, and `MapScrollFile` holds five
 28-byte records. Fields whose meaning isn't known are named `Unknown`/`Value` and kept as-is.
 
-All 141 distinct `.dat` files in the dump (137 event lists, plus one of each other kind) rebuild to the same bytes,
-and event lists still round-trip after adding a property and lengthening a string.
+```csharp
+StbFile demo = StbFile.FromBinary(arc["dat/demo01.stb"]!.Data);
+foreach (StbObject obj in demo.Blocks.OfType<StbObject>())           // JCMR $cam, JACT $act03, JMSG $msg, control ...
+    foreach (StbCommand c in obj.Sequence) Console.WriteLine($"{obj}: {c}");   // wait 90, paragraph [0858:18], end
+FvbFile curves = demo.Blocks.OfType<StbFvbBlock>().First().Fvb;
+```
+
+A cutscene is JStudio's STB: object blocks with a command sequence (op 0x00 end, 0x02 wait, 0x04, and 0x80
+paragraphs of typed items), a `JFVB` block holding the `FVB` function curves the commands sample, and `JCTB` kept raw.
+Items are kept as their type and bytes, with `U32`, `F32` and `Text` readers; paragraph lengths, block sizes and padding
+are rebuilt on write.
+
+`PlcFile` is `SPLC`: five u32 bitfields per collision code, with `Bits`/`SetBits` helpers, padded to 0x20 with 0xFF.
+`EnemyTextFile` reads the Shift-JIS CSV sheets into sections of rows of cells (the first section is the id and name,
+e.g. `2,デクババ`). `BedgeFile` edits a `BEDG` file's mode, six floats and colour in place.
+
+All 752 distinct files in the dump rebuild to the same bytes: 137 event lists, 114 cutscenes (2,231 objects, 25,285
+commands, 10,075 FVB functions), 481 polygon-code tables, 14 enemy sheets, 2 map edges and one of each other `.dat`.
+Event lists still round-trip after adding a property and lengthening a string, and cutscenes after changing a wait and
+lengthening a message id.
 
 ## Build
 
